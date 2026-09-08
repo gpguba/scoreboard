@@ -155,6 +155,19 @@
   }
   #flip[hidden]{display:none}
 
+  #dbg{
+    position:absolute;
+    top:10px;left:12px;
+    font:600 11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;
+    color:rgba(255,255,255,.8);
+    background:rgba(0,0,0,.55);
+    padding:6px 8px;
+    border-radius:8px;
+    white-space:pre;
+    pointer-events:none;
+  }
+  #dbg[hidden]{display:none}
+
   @media (prefers-reduced-motion: reduce){
     .score.bump{animation:none}
     #board,#reset,#reset.holding .prog{transition:none}
@@ -185,6 +198,8 @@
         <span class="glyph" aria-hidden="true">&#8635;</span>
       </button>
     </div>
+
+    <div id="dbg" hidden></div>
   </main>
 </div>
 
@@ -209,6 +224,23 @@
   var sensorLive = false;
   var manualDown = false;
   var R = 0;                       // degrees the board is rotated in the viewport
+
+  var DEBUG = location.hash.indexOf("debug") >= 0;
+  var dbg = document.getElementById("dbg");
+  var last = { beta:null, gamma:null, theta:null };
+  var dbgAt = 0;
+
+  function updateDebug(){
+    if (!DEBUG) return;
+    dbg.hidden = false;
+    dbg.textContent =
+      "pose " + currentPose() + "   R " + R + "\n" +
+      "theta " + (last.theta === null ? "-" : Math.round(last.theta)) +
+      "   b " + (last.beta === null ? "-" : Math.round(last.beta)) +
+      "   g " + (last.gamma === null ? "-" : Math.round(last.gamma)) + "\n" +
+      "vp " + window.innerWidth + "x" + window.innerHeight +
+      "   sensor " + (sensorLive ? "on" : "off");
+  }
 
   function currentPose(){
     return sensorLive ? pose : (manualDown ? "down" : "up");
@@ -252,6 +284,8 @@
     else if (R === 180) board.style.transform = "translate(" + cw + "px," + ch + "px) rotate(180deg)";
     else if (R === 270) board.style.transform = "translateY(" + ch + "px) rotate(-90deg)";
     else                board.style.transform = "none";
+
+    updateDebug();
   }
 
   window.addEventListener("resize", layout);
@@ -272,6 +306,8 @@
 
     if (Math.hypot(gx, gy) < 0.3) return;   // lying flat: hold the last pose
 
+    last.beta = e.beta; last.gamma = e.gamma;
+
     if (!sensorLive){
       sensorLive = true;
       flipBtn.hidden = true;
@@ -279,6 +315,9 @@
 
     var deg = Math.atan2(gx, -gy) * 180 / Math.PI;
     if (deg < 0) deg += 360;
+
+    last.theta = deg;
+    if (DEBUG && Date.now() - dbgAt > 200){ dbgAt = Date.now(); updateDebug(); }
 
     if (angleGap(deg, POSE[pose]) < 60) return;   // dead zone
 
