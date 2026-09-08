@@ -33,10 +33,10 @@
     -webkit-tap-highlight-color:transparent;
   }
 
-  #board{
-    display:flex;
-    gap:6px;
-    height:100%;
+  /* Stage holds the safe-area inset and never rotates. */
+  #stage{
+    position:absolute;
+    inset:0;
     padding:
       calc(6px + env(safe-area-inset-top))
       calc(6px + env(safe-area-inset-right))
@@ -44,14 +44,22 @@
       calc(6px + env(safe-area-inset-left));
   }
 
-  /* Pose = where the handset physically is, from gravity.
-     Spin = how far the digits still need to turn, which depends on whether
-     the browser already rotated the viewport or rotation lock stopped it. */
-  #board{flex-direction:row}
-  @media (orientation:landscape){
-    #board[data-pose="right"]{flex-direction:column}
-    #board[data-pose="left"] {flex-direction:column-reverse}
+  /* Board rotates as a whole so the digits are always upright in the
+     real world. Size and transform are set from JS. */
+  #board{
+    position:absolute;
+    display:flex;
+    gap:6px;
+    transform-origin:0 0;
+    transition:transform 260ms cubic-bezier(.4,0,.2,1);
   }
+
+  /* Blue is welded to one physical edge of the handset. As the phone
+     turns, the split axis turns with it so blue never changes edge. */
+  #board[data-pose="up"]   {flex-direction:row}
+  #board[data-pose="right"]{flex-direction:column}
+  #board[data-pose="down"] {flex-direction:row-reverse}
+  #board[data-pose="left"] {flex-direction:column-reverse}
 
   .panel{
     flex:1;
@@ -66,27 +74,14 @@
   .panel[data-side="left"]{background:var(--left)}
   .panel[data-side="right"]{background:var(--right)}
 
-  /* Only the digits turn over. The panels stay put. */
-  .flip{
-    display:block;
-    transition:transform 260ms cubic-bezier(.4,0,.2,1);
-  }
-  #board[data-spin="90"]  .flip{transform:rotate(90deg)}
-  #board[data-spin="180"] .flip{transform:rotate(180deg)}
-  #board[data-spin="270"] .flip{transform:rotate(270deg)}
-
-  /* The arrows read correctly at 0 and 180 but lie on a quarter turn. */
-  #board[data-spin="90"]  .cue,
-  #board[data-spin="270"] .cue{opacity:0}
-
   .score{
     font-size:min(32vw,32vh);          /* fallback */
     font-weight:700;
     line-height:1;
     letter-spacing:-0.045em;
     font-variant-numeric:tabular-nums;
-    will-change:transform;
     display:block;
+    will-change:transform;
   }
   @supports (container-type:size){
     .score{font-size:min(76cqw,90cqh)}
@@ -109,10 +104,11 @@
   .cue.up{top:14px}
   .cue.down{bottom:14px}
 
+  /* Inside the board, so the controls turn with it and stay upright. */
   #controls{
     position:absolute;
     left:50%;
-    bottom:calc(14px + env(safe-area-inset-bottom));
+    bottom:14px;
     transform:translateX(-50%);
     display:flex;
     align-items:center;
@@ -155,39 +151,40 @@
     border-radius:17px;
     font-size:13px;
     font-weight:600;
-    letter-spacing:.01em;
   }
   #flip[hidden]{display:none}
 
   @media (prefers-reduced-motion: reduce){
     .score.bump{animation:none}
-    .flip,#reset,#reset.holding .prog{transition:none}
+    #board,#reset,#reset.holding .prog{transition:none}
   }
 </style>
 </head>
 <body>
 
-<main id="board" data-pose="up" data-spin="0">
-  <section class="panel" data-side="left">
-    <span class="cue up">&#9650;</span>
-    <span class="flip"><span class="score" id="score-left">0</span></span>
-    <span class="cue down">&#9660;</span>
-  </section>
-  <section class="panel" data-side="right">
-    <span class="cue up">&#9650;</span>
-    <span class="flip"><span class="score" id="score-right">0</span></span>
-    <span class="cue down">&#9660;</span>
-  </section>
-</main>
+<div id="stage">
+  <main id="board" data-pose="up">
+    <section class="panel" data-side="left">
+      <span class="cue up">&#9650;</span>
+      <span class="score" id="score-left">0</span>
+      <span class="cue down">&#9660;</span>
+    </section>
+    <section class="panel" data-side="right">
+      <span class="cue up">&#9650;</span>
+      <span class="score" id="score-right">0</span>
+      <span class="cue down">&#9660;</span>
+    </section>
 
-<div id="controls">
-  <button id="flip">Auto-flip</button>
-  <button id="reset" aria-label="Hold to reset both scores">
-    <svg viewBox="0 0 46 46" aria-hidden="true">
-      <circle class="prog" cx="23" cy="23" r="20"></circle>
-    </svg>
-    <span class="glyph" aria-hidden="true">&#8635;</span>
-  </button>
+    <div id="controls">
+      <button id="flip">Auto-flip</button>
+      <button id="reset" aria-label="Hold to reset both scores">
+        <svg viewBox="0 0 46 46" aria-hidden="true">
+          <circle class="prog" cx="23" cy="23" r="20"></circle>
+        </svg>
+        <span class="glyph" aria-hidden="true">&#8635;</span>
+      </button>
+    </div>
+  </main>
 </div>
 
 <script>
@@ -196,6 +193,7 @@
 
   var MAX = 99, MIN = 0, SWIPE = 24, HOLD = 700;
 
+  var stage   = document.getElementById("stage");
   var board   = document.getElementById("board");
   var flipBtn = document.getElementById("flip");
   var scores  = { left: 0, right: 0 };
@@ -204,39 +202,62 @@
     right: document.getElementById("score-right")
   };
 
-  // --- pose -------------------------------------------------------------
-  // "up" = phone upright, "down" = phone turned over to face the players,
-  // "right"/"left" = on its side. Only "down" inverts anything.
+  // Pose is where the handset physically is, from gravity alone.
   var POSE = { up:0, right:90, down:180, left:270 };
   var pose = "up";
   var sensorLive = false;
   var manualDown = false;
+  var R = 0;                       // degrees the board is rotated in the viewport
 
-  var browserAngle = 0;   // how far the viewport is already turned
+  function currentPose(){
+    return sensorLive ? pose : (manualDown ? "down" : "up");
+  }
 
-  function applyPose(){
-    var p = sensorLive ? pose : (manualDown ? "down" : "up");
+  // How much WE have to rotate. If the browser already turned the page
+  // (rotation unlocked), it has done the work and we leave it alone.
+  // If it is locked, the viewport stays portrait and we rotate instead.
+  function computeR(p){
+    var a = POSE[p];
+    var vpLandscape = window.innerWidth > window.innerHeight;
+    var poseLandscape = (a === 90 || a === 270);
+    if (vpLandscape && poseLandscape) return 0;
+    return (360 - a) % 360;
+  }
+
+  var prevSwap = null;
+
+  function layout(){
+    var p = currentPose();
     board.dataset.pose = p;
+    R = computeR(p);
 
-    // A portrait viewport means the browser did not rotate — either the phone
-    // is upright or rotation lock held it — so the digits carry the whole
-    // correction. A landscape viewport means it rotated for us already.
-    if (window.matchMedia("(orientation: portrait)").matches) browserAngle = 0;
-    else if (p === "right" || p === "left") browserAngle = POSE[p];
+    var cs = getComputedStyle(stage);
+    var padL = parseFloat(cs.paddingLeft);
+    var padT = parseFloat(cs.paddingTop);
+    var cw = stage.clientWidth  - padL - parseFloat(cs.paddingRight);
+    var ch = stage.clientHeight - padT - parseFloat(cs.paddingBottom);
 
-    board.dataset.spin = String((POSE[p] - browserAngle + 360) % 360);
+    var swap = (R === 90 || R === 270);
+    var shapeChanged = (prevSwap !== null && prevSwap !== swap);
+    prevSwap = swap;
+
+    board.style.transition = shapeChanged ? "none" : "";
+    board.style.left   = padL + "px";
+    board.style.top    = padT + "px";
+    board.style.width  = (swap ? ch : cw) + "px";
+    board.style.height = (swap ? cw : ch) + "px";
+
+    if (R === 90)       board.style.transform = "translateX(" + cw + "px) rotate(90deg)";
+    else if (R === 180) board.style.transform = "translate(" + cw + "px," + ch + "px) rotate(180deg)";
+    else if (R === 270) board.style.transform = "translateY(" + ch + "px) rotate(-90deg)";
+    else                board.style.transform = "none";
   }
 
-  function spin(){
-    return parseInt(board.dataset.spin, 10) || 0;
-  }
+  window.addEventListener("resize", layout);
+  window.addEventListener("orientationchange", function(){ setTimeout(layout, 120); });
 
-  window.addEventListener("resize", applyPose);
-  window.addEventListener("orientationchange", applyPose);
-
-  function angleGap(a, b){
-    return Math.abs(((a - b + 540) % 360) - 180);
-  }
+  // --- gravity ----------------------------------------------------------
+  function angleGap(a, b){ return Math.abs(((a - b + 540) % 360) - 180); }
 
   function onOrient(e){
     if (e.beta === null || e.gamma === null) return;
@@ -248,8 +269,7 @@
     var gx = -Math.cos(b) * Math.sin(g);
     var gy = -Math.sin(b);
 
-    // Lying flat: no meaningful in-plane direction, so hold the last pose.
-    if (Math.hypot(gx, gy) < 0.3) return;
+    if (Math.hypot(gx, gy) < 0.3) return;   // lying flat: hold the last pose
 
     if (!sensorLive){
       sensorLive = true;
@@ -259,50 +279,39 @@
     var deg = Math.atan2(gx, -gy) * 180 / Math.PI;
     if (deg < 0) deg += 360;
 
-    // Wide dead zone so a tilted phone doesn't oscillate between poses.
-    if (angleGap(deg, POSE[pose]) < 60) return;
+    if (angleGap(deg, POSE[pose]) < 60) return;   // dead zone
 
     var best = pose, bestGap = 999;
     for (var k in POSE){
       var gap = angleGap(deg, POSE[k]);
       if (gap < bestGap){ bestGap = gap; best = k; }
     }
-    if (best !== pose){ pose = best; applyPose(); }
+    if (best !== pose){ pose = best; layout(); }
   }
 
   function needsPermission(){
     return typeof DeviceOrientationEvent !== "undefined" &&
            typeof DeviceOrientationEvent.requestPermission === "function";
   }
+  function listen(){ window.addEventListener("deviceorientation", onOrient); }
 
-  function listen(){
-    window.addEventListener("deviceorientation", onOrient);
+  function fallbackToManual(){
+    flipBtn.textContent = "Flip";
+    manualDown = !manualDown;
+    layout();
   }
 
   flipBtn.addEventListener("click", function(){
     if (needsPermission()){
       DeviceOrientationEvent.requestPermission().then(function(state){
-        if (state === "granted"){
-          listen();                       // hides itself on the first reading
-        } else {
-          fallbackToManual();
-        }
+        if (state === "granted") listen(); else fallbackToManual();
       }).catch(fallbackToManual);
     } else {
       fallbackToManual();
     }
   });
 
-  function fallbackToManual(){
-    flipBtn.textContent = "Flip";
-    manualDown = !manualDown;
-    applyPose();
-  }
-
-  // Android and desktop expose the sensor without a prompt.
   if (typeof DeviceOrientationEvent !== "undefined" && !needsPermission()) listen();
-
-  applyPose();
 
   // --- scoring ----------------------------------------------------------
   function render(side){
@@ -337,14 +346,14 @@
       var dy = e.clientY - origin.y;
       origin = null;
 
-      // Turn the gesture into the same frame the digits are drawn in, so
-      // "up" means up to whoever is actually reading the screen.
-      var rad = -spin() * Math.PI / 180;
-      var cx = dx * Math.cos(rad) - dy * Math.sin(rad);
-      var cy = dx * Math.sin(rad) + dy * Math.cos(rad);
+      // Pointer deltas are in viewport space; turn them into board space
+      // so "up" always means what the person looking at it sees as up.
+      var rad = -R * Math.PI / 180;
+      var lx = dx * Math.cos(rad) - dy * Math.sin(rad);
+      var ly = dx * Math.sin(rad) + dy * Math.cos(rad);
 
-      if (Math.abs(cy) < SWIPE || Math.abs(cy) <= Math.abs(cx)) return;
-      change(side, cy < 0 ? 1 : -1);
+      if (Math.abs(ly) < SWIPE || Math.abs(ly) <= Math.abs(lx)) return;
+      change(side, ly < 0 ? 1 : -1);
     });
 
     panel.addEventListener("pointercancel", function(){ origin = null; });
@@ -365,10 +374,8 @@
     e.stopPropagation();
     resetBtn.classList.add("holding");
     holdTimer = setTimeout(function(){
-      scores.left = 0;
-      scores.right = 0;
-      render("left");
-      render("right");
+      scores.left = 0; scores.right = 0;
+      render("left"); render("right");
       endHold();
     }, HOLD);
   });
@@ -394,6 +401,8 @@
   document.addEventListener("gesturestart", function(e){ e.preventDefault(); });
   document.addEventListener("contextmenu",  function(e){ e.preventDefault(); });
   document.addEventListener("touchmove", function(e){ e.preventDefault(); }, { passive:false });
+
+  layout();
 })();
 </script>
 </body>
