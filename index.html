@@ -54,12 +54,13 @@
     transition:transform 260ms cubic-bezier(.4,0,.2,1);
   }
 
-  /* Blue is welded to one physical edge of the handset. As the phone
-     turns, the split axis turns with it so blue never changes edge. */
-  #board[data-pose="up"]   {flex-direction:row}
-  #board[data-pose="right"]{flex-direction:column}
+  /* Blue sits on the viewer's left in every orientation. The one
+     exception is upside down, where the pair swaps so blue holds the
+     same physical edge of the handset. */
+  #board[data-pose="up"],
+  #board[data-pose="right"],
+  #board[data-pose="left"] {flex-direction:row}
   #board[data-pose="down"] {flex-direction:row-reverse}
-  #board[data-pose="left"] {flex-direction:column-reverse}
 
   .panel{
     flex:1;
