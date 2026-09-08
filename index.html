@@ -44,13 +44,14 @@
       calc(6px + env(safe-area-inset-left));
   }
 
-  /* Pose = where the phone physically is, derived from gravity.
-     The colours never move relative to the handset: blue always sits on
-     the same physical edge, so the layout axis changes instead. */
-  #board[data-pose="up"],
-  #board[data-pose="down"] {flex-direction:row}
-  #board[data-pose="right"]{flex-direction:column}
-  #board[data-pose="left"] {flex-direction:column-reverse}
+  /* Pose = where the handset physically is, from gravity.
+     Spin = how far the digits still need to turn, which depends on whether
+     the browser already rotated the viewport or rotation lock stopped it. */
+  #board{flex-direction:row}
+  @media (orientation:landscape){
+    #board[data-pose="right"]{flex-direction:column}
+    #board[data-pose="left"] {flex-direction:column-reverse}
+  }
 
   .panel{
     flex:1;
@@ -70,7 +71,13 @@
     display:block;
     transition:transform 260ms cubic-bezier(.4,0,.2,1);
   }
-  #board[data-pose="down"] .flip{transform:rotate(180deg)}
+  #board[data-spin="90"]  .flip{transform:rotate(90deg)}
+  #board[data-spin="180"] .flip{transform:rotate(180deg)}
+  #board[data-spin="270"] .flip{transform:rotate(270deg)}
+
+  /* The arrows read correctly at 0 and 180 but lie on a quarter turn. */
+  #board[data-spin="90"]  .cue,
+  #board[data-spin="270"] .cue{opacity:0}
 
   .score{
     font-size:min(32vw,32vh);          /* fallback */
@@ -160,7 +167,7 @@
 </head>
 <body>
 
-<main id="board" data-pose="up">
+<main id="board" data-pose="up" data-spin="0">
   <section class="panel" data-side="left">
     <span class="cue up">&#9650;</span>
     <span class="flip"><span class="score" id="score-left">0</span></span>
@@ -205,12 +212,27 @@
   var sensorLive = false;
   var manualDown = false;
 
+  var browserAngle = 0;   // how far the viewport is already turned
+
   function applyPose(){
-    board.dataset.pose = sensorLive ? pose : (manualDown ? "down" : "up");
+    var p = sensorLive ? pose : (manualDown ? "down" : "up");
+    board.dataset.pose = p;
+
+    // A portrait viewport means the browser did not rotate — either the phone
+    // is upright or rotation lock held it — so the digits carry the whole
+    // correction. A landscape viewport means it rotated for us already.
+    if (window.matchMedia("(orientation: portrait)").matches) browserAngle = 0;
+    else if (p === "right" || p === "left") browserAngle = POSE[p];
+
+    board.dataset.spin = String((POSE[p] - browserAngle + 360) % 360);
   }
-  function isInverted(){
-    return board.dataset.pose === "down";
+
+  function spin(){
+    return parseInt(board.dataset.spin, 10) || 0;
   }
+
+  window.addEventListener("resize", applyPose);
+  window.addEventListener("orientationchange", applyPose);
 
   function angleGap(a, b){
     return Math.abs(((a - b + 540) % 360) - 180);
@@ -280,6 +302,8 @@
   // Android and desktop expose the sensor without a prompt.
   if (typeof DeviceOrientationEvent !== "undefined" && !needsPermission()) listen();
 
+  applyPose();
+
   // --- scoring ----------------------------------------------------------
   function render(side){
     var node = el[side];
@@ -309,14 +333,18 @@
 
     panel.addEventListener("pointerup", function(e){
       if (!origin || origin.id !== e.pointerId) return;
-      var dy = e.clientY - origin.y;
       var dx = e.clientX - origin.x;
+      var dy = e.clientY - origin.y;
       origin = null;
-      if (Math.abs(dy) < SWIPE || Math.abs(dy) <= Math.abs(dx)) return;
 
-      var up = dy < 0;
-      if (isInverted()) up = !up;      // match what the viewer is looking at
-      change(side, up ? 1 : -1);
+      // Turn the gesture into the same frame the digits are drawn in, so
+      // "up" means up to whoever is actually reading the screen.
+      var rad = -spin() * Math.PI / 180;
+      var cx = dx * Math.cos(rad) - dy * Math.sin(rad);
+      var cy = dx * Math.sin(rad) + dy * Math.cos(rad);
+
+      if (Math.abs(cy) < SWIPE || Math.abs(cy) <= Math.abs(cx)) return;
+      change(side, cy < 0 ? 1 : -1);
     });
 
     panel.addEventListener("pointercancel", function(){ origin = null; });
