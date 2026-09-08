@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="disabled-adaptations" content="watch">
+<meta name="theme-color" content="#131518">
+<title>Scoreboard</title>
+<style>
+  :root{
+    --bg:#131518;
+    --left:#1B4FD8;
+    --right:#C8232F;
+    --ink:#FFFFFF;
+    --hold:700ms;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{height:100%}
+  body{
+    position:fixed;
+    inset:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    overflow:hidden;
+    overscroll-behavior:none;
+    -webkit-user-select:none;
+    user-select:none;
+    -webkit-touch-callout:none;
+    -webkit-tap-highlight-color:transparent;
+  }
+
+  #board{
+    display:flex;
+    gap:6px;
+    height:100%;
+    padding:
+      calc(6px + env(safe-area-inset-top))
+      calc(6px + env(safe-area-inset-right))
+      calc(6px + env(safe-area-inset-bottom))
+      calc(6px + env(safe-area-inset-left));
+  }
+
+  /* Pose = where the phone physically is, derived from gravity.
+     The colours never move relative to the handset: blue always sits on
+     the same physical edge, so the layout axis changes instead. */
+  #board[data-pose="up"],
+  #board[data-pose="down"] {flex-direction:row}
+  #board[data-pose="right"]{flex-direction:column}
+  #board[data-pose="left"] {flex-direction:column-reverse}
+
+  .panel{
+    flex:1;
+    position:relative;
+    border-radius:22px;
+    display:grid;
+    place-items:center;
+    touch-action:none;
+    overflow:hidden;
+    container-type:size;
+  }
+  .panel[data-side="left"]{background:var(--left)}
+  .panel[data-side="right"]{background:var(--right)}
+
+  /* Only the digits turn over. The panels stay put. */
+  .flip{
+    display:block;
+    transition:transform 260ms cubic-bezier(.4,0,.2,1);
+  }
+  #board[data-pose="down"] .flip{transform:rotate(180deg)}
+
+  .score{
+    font-size:min(32vw,32vh);          /* fallback */
+    font-weight:700;
+    line-height:1;
+    letter-spacing:-0.045em;
+    font-variant-numeric:tabular-nums;
+    will-change:transform;
+    display:block;
+  }
+  @supports (container-type:size){
+    .score{font-size:min(76cqw,90cqh)}
+  }
+  .score.bump{animation:pop 180ms ease-out}
+  @keyframes pop{
+    0%{transform:scale(1)}
+    45%{transform:scale(1.14)}
+    100%{transform:scale(1)}
+  }
+
+  .cue{
+    position:absolute;
+    left:0;right:0;
+    text-align:center;
+    font-size:15px;
+    opacity:.22;
+    pointer-events:none;
+  }
+  .cue.up{top:14px}
+  .cue.down{bottom:14px}
+
+  #controls{
+    position:absolute;
+    left:50%;
+    bottom:calc(14px + env(safe-area-inset-bottom));
+    transform:translateX(-50%);
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+
+  button{
+    border:none;
+    background:var(--bg);
+    color:rgba(255,255,255,.55);
+    box-shadow:0 0 0 1px rgba(255,255,255,.18);
+    font-family:inherit;
+    touch-action:none;
+    cursor:pointer;
+  }
+
+  #reset{
+    position:relative;
+    width:46px;height:46px;
+    display:grid;
+    place-items:center;
+    border-radius:50%;
+    transition:transform 120ms ease-out,color 120ms ease-out;
+  }
+  #reset.holding{transform:scale(.88);color:#fff}
+  #reset svg{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg)}
+  #reset .prog{
+    fill:none;stroke:#fff;stroke-width:3;stroke-linecap:round;
+    stroke-dasharray:126;stroke-dashoffset:126;
+  }
+  #reset.holding .prog{
+    stroke-dashoffset:0;
+    transition:stroke-dashoffset var(--hold) linear;
+  }
+  #reset .glyph{font-size:19px;line-height:1;position:relative}
+
+  #flip{
+    height:34px;
+    padding:0 14px;
+    border-radius:17px;
+    font-size:13px;
+    font-weight:600;
+    letter-spacing:.01em;
+  }
+  #flip[hidden]{display:none}
+
+  @media (prefers-reduced-motion: reduce){
+    .score.bump{animation:none}
+    .flip,#reset,#reset.holding .prog{transition:none}
+  }
+</style>
+</head>
+<body>
+
+<main id="board" data-pose="up">
+  <section class="panel" data-side="left">
+    <span class="cue up">&#9650;</span>
+    <span class="flip"><span class="score" id="score-left">0</span></span>
+    <span class="cue down">&#9660;</span>
+  </section>
+  <section class="panel" data-side="right">
+    <span class="cue up">&#9650;</span>
+    <span class="flip"><span class="score" id="score-right">0</span></span>
+    <span class="cue down">&#9660;</span>
+  </section>
+</main>
+
+<div id="controls">
+  <button id="flip">Auto-flip</button>
+  <button id="reset" aria-label="Hold to reset both scores">
+    <svg viewBox="0 0 46 46" aria-hidden="true">
+      <circle class="prog" cx="23" cy="23" r="20"></circle>
+    </svg>
+    <span class="glyph" aria-hidden="true">&#8635;</span>
+  </button>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var MAX = 99, MIN = 0, SWIPE = 24, HOLD = 700;
+
+  var board   = document.getElementById("board");
+  var flipBtn = document.getElementById("flip");
+  var scores  = { left: 0, right: 0 };
+  var el = {
+    left:  document.getElementById("score-left"),
+    right: document.getElementById("score-right")
+  };
+
+  // --- pose -------------------------------------------------------------
+  // "up" = phone upright, "down" = phone turned over to face the players,
+  // "right"/"left" = on its side. Only "down" inverts anything.
+  var POSE = { up:0, right:90, down:180, left:270 };
+  var pose = "up";
+  var sensorLive = false;
+  var manualDown = false;
+
+  function applyPose(){
+    board.dataset.pose = sensorLive ? pose : (manualDown ? "down" : "up");
+  }
+  function isInverted(){
+    return board.dataset.pose === "down";
+  }
+
+  function angleGap(a, b){
+    return Math.abs(((a - b + 540) % 360) - 180);
+  }
+
+  function onOrient(e){
+    if (e.beta === null || e.gamma === null) return;
+
+    var b = e.beta  * Math.PI / 180;
+    var g = e.gamma * Math.PI / 180;
+
+    // Gravity projected onto the plane of the screen, in device axes.
+    var gx = -Math.cos(b) * Math.sin(g);
+    var gy = -Math.sin(b);
+
+    // Lying flat: no meaningful in-plane direction, so hold the last pose.
+    if (Math.hypot(gx, gy) < 0.3) return;
+
+    if (!sensorLive){
+      sensorLive = true;
+      flipBtn.hidden = true;
+    }
+
+    var deg = Math.atan2(gx, -gy) * 180 / Math.PI;
+    if (deg < 0) deg += 360;
+
+    // Wide dead zone so a tilted phone doesn't oscillate between poses.
+    if (angleGap(deg, POSE[pose]) < 60) return;
+
+    var best = pose, bestGap = 999;
+    for (var k in POSE){
+      var gap = angleGap(deg, POSE[k]);
+      if (gap < bestGap){ bestGap = gap; best = k; }
+    }
+    if (best !== pose){ pose = best; applyPose(); }
+  }
+
+  function needsPermission(){
+    return typeof DeviceOrientationEvent !== "undefined" &&
+           typeof DeviceOrientationEvent.requestPermission === "function";
+  }
+
+  function listen(){
+    window.addEventListener("deviceorientation", onOrient);
+  }
+
+  flipBtn.addEventListener("click", function(){
+    if (needsPermission()){
+      DeviceOrientationEvent.requestPermission().then(function(state){
+        if (state === "granted"){
+          listen();                       // hides itself on the first reading
+        } else {
+          fallbackToManual();
+        }
+      }).catch(fallbackToManual);
+    } else {
+      fallbackToManual();
+    }
+  });
+
+  function fallbackToManual(){
+    flipBtn.textContent = "Flip";
+    manualDown = !manualDown;
+    applyPose();
+  }
+
+  // Android and desktop expose the sensor without a prompt.
+  if (typeof DeviceOrientationEvent !== "undefined" && !needsPermission()) listen();
+
+  // --- scoring ----------------------------------------------------------
+  function render(side){
+    var node = el[side];
+    node.textContent = scores[side];
+    node.classList.remove("bump");
+    void node.offsetWidth;
+    node.classList.add("bump");
+  }
+
+  function change(side, delta){
+    var next = Math.min(MAX, Math.max(MIN, scores[side] + delta));
+    if (next === scores[side]) return;
+    scores[side] = next;
+    render(side);
+  }
+
+  var origin = null;
+
+  document.querySelectorAll(".panel").forEach(function(panel){
+    var side = panel.dataset.side;
+
+    panel.addEventListener("pointerdown", function(e){
+      origin = { x: e.clientX, y: e.clientY, id: e.pointerId };
+      panel.setPointerCapture(e.pointerId);
+      keepAwake();
+    });
+
+    panel.addEventListener("pointerup", function(e){
+      if (!origin || origin.id !== e.pointerId) return;
+      var dy = e.clientY - origin.y;
+      var dx = e.clientX - origin.x;
+      origin = null;
+      if (Math.abs(dy) < SWIPE || Math.abs(dy) <= Math.abs(dx)) return;
+
+      var up = dy < 0;
+      if (isInverted()) up = !up;      // match what the viewer is looking at
+      change(side, up ? 1 : -1);
+    });
+
+    panel.addEventListener("pointercancel", function(){ origin = null; });
+  });
+
+  // --- hold to reset ----------------------------------------------------
+  var resetBtn = document.getElementById("reset");
+  var holdTimer = null;
+
+  function endHold(){
+    clearTimeout(holdTimer);
+    holdTimer = null;
+    resetBtn.classList.remove("holding");
+  }
+
+  resetBtn.addEventListener("pointerdown", function(e){
+    e.preventDefault();
+    e.stopPropagation();
+    resetBtn.classList.add("holding");
+    holdTimer = setTimeout(function(){
+      scores.left = 0;
+      scores.right = 0;
+      render("left");
+      render("right");
+      endHold();
+    }, HOLD);
+  });
+
+  ["pointerup","pointerleave","pointercancel"].forEach(function(evt){
+    resetBtn.addEventListener(evt, endHold);
+  });
+
+  // --- keep the screen on -----------------------------------------------
+  var lock = null;
+  function keepAwake(){
+    if (lock || !navigator.wakeLock) return;
+    navigator.wakeLock.request("screen").then(function(l){
+      lock = l;
+      l.addEventListener("release", function(){ lock = null; });
+    }).catch(function(){});
+  }
+  document.addEventListener("visibilitychange", function(){
+    if (document.visibilityState === "visible") keepAwake();
+  });
+
+  // --- block browser gestures that fight the swipes ---------------------
+  document.addEventListener("gesturestart", function(e){ e.preventDefault(); });
+  document.addEventListener("contextmenu",  function(e){ e.preventDefault(); });
+  document.addEventListener("touchmove", function(e){ e.preventDefault(); }, { passive:false });
+})();
+</script>
+</body>
+</html>
