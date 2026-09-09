@@ -67,14 +67,14 @@
     gap:6px;
   }
 
-  /* Turning the handset over 180 degrees leaves the coloured panels on
-     exactly the same glass and rotates only the digits. That holds on
-     both axes: up/down are a pair, and right/left are a pair. Swapping
-     which of right/left carries the reverse mirrors the sideways case. */
+  /* Blue sits on the viewer's left in portrait and in both landscape
+     directions. Turned over in landscape the board rotates 180 with the
+     handset, so the two cancel and the viewer sees no change at all.
+     Upside down in portrait is the one case that swaps the pair. */
   #board[data-pose="up"]    #panels,
-  #board[data-pose="right"] #panels{flex-direction:row}
-  #board[data-pose="down"]  #panels,
-  #board[data-pose="left"]  #panels{flex-direction:row-reverse}
+  #board[data-pose="right"] #panels,
+  #board[data-pose="left"]  #panels{flex-direction:row}
+  #board[data-pose="down"]  #panels{flex-direction:row-reverse}
 
   .panel{
     flex:1;
