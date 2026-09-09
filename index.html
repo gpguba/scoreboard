@@ -5,7 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<!-- Not black-translucent: on the home screen that anchors the viewport
+     at the top of the display while sizing it to the screen MINUS the
+     status bar, stranding an equal dead band along the bottom that no
+     amount of styling can reach. Plain black starts the viewport below
+     the status bar and it reaches the foot of the screen. -->
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="disabled-adaptations" content="watch">
 <meta name="theme-color" content="#131518">
 <title>Scoreboard</title>
@@ -180,6 +185,16 @@
   }
   #dbg[hidden]{display:none}
 
+  /* On the home screen there is no address bar, so no reason to hold
+     room for one. Panels run to the edges; only the reset button keeps
+     clear of the home indicator. */
+  @media (display-mode: standalone){
+    #stage{padding:4px}
+    #controls{bottom:calc(6px + env(safe-area-inset-bottom))}
+  }
+  html.standalone #stage{padding:4px}
+  html.standalone #controls{bottom:calc(6px + env(safe-area-inset-bottom))}
+
   /* Watch-sized screens. Both dimensions are tested so no phone matches. */
   @media (max-width: 300px) and (max-height: 300px){
     #stage{
@@ -243,6 +258,11 @@
   "use strict";
 
   var MAX = 99, MIN = 0, SWIPE = 24, HOLD = 700;
+
+  // Older iOS predates the display-mode media query.
+  if (window.navigator.standalone === true){
+    document.documentElement.classList.add("standalone");
+  }
 
   var stage   = document.getElementById("stage");
   var board   = document.getElementById("board");
