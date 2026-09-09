@@ -67,14 +67,13 @@
     gap:6px;
   }
 
-  /* Blue sits on the viewer's left in portrait and in both landscape
-     directions. Turned over in landscape the board rotates 180 with the
-     handset, so the two cancel and the viewer sees no change at all.
-     Upside down in portrait is the one case that swaps the pair. */
-  #board[data-pose="up"]    #panels,
-  #board[data-pose="right"] #panels,
-  #board[data-pose="left"]  #panels{flex-direction:row}
-  #board[data-pose="down"]  #panels{flex-direction:row-reverse}
+  /* A quarter turn is one person reorienting, so blue comes back to their
+     left. A 180 turn hands the board to whoever is opposite, so blue holds
+     the same edge of the handset and lands on their right. Those two cases
+     can end on the same pose, so which applies depends on the size of the
+     turn taken to get there — hence a stored flag, not a lookup on pose. */
+  #board[data-mirror="0"] #panels{flex-direction:row}
+  #board[data-mirror="1"] #panels{flex-direction:row-reverse}
 
   .panel{
     flex:1;
@@ -225,7 +224,7 @@
 <body>
 
 <div id="stage">
-  <main id="board" data-pose="up">
+  <main id="board" data-pose="up" data-mirror="0">
    <div id="panels">
     <section class="panel" data-side="left">
       <span class="cue up">&#9650;</span>
@@ -276,6 +275,7 @@
   // Pose is where the handset physically is, from gravity alone.
   var POSE = { up:0, right:90, down:180, left:270 };
   var pose = "up";
+  var mirrored = false;            // true when blue is on the viewer's right
   var sensorLive = false;
   var manualDown = false;
   var R = 0;                       // degrees the board is rotated in the viewport
@@ -289,7 +289,7 @@
     if (!DEBUG) return;
     dbg.hidden = false;
     dbg.textContent =
-      "pose " + currentPose() + "   R " + R + "\n" +
+      "pose " + currentPose() + "  R " + R + "  m " + (mirrored ? 1 : 0) + "\n" +
       "theta " + (last.theta === null ? "-" : Math.round(last.theta)) +
       "   b " + (last.beta === null ? "-" : Math.round(last.beta)) +
       "   g " + (last.gamma === null ? "-" : Math.round(last.gamma)) + "\n" +
@@ -317,6 +317,7 @@
   function layout(){
     var p = currentPose();
     board.dataset.pose = p;
+    board.dataset.mirror = mirrored ? "1" : "0";
     R = computeR(p);
 
     var cs = getComputedStyle(stage);
@@ -383,7 +384,17 @@
       var gap = angleGap(deg, POSE[k]);
       if (gap < bestGap){ bestGap = gap; best = k; }
     }
-    if (best !== pose){ pose = best; layout(); }
+    if (best !== pose) setPose(best);
+  }
+
+  // A 180 turn keeps blue in the hand holding it; a quarter turn returns
+  // it to the viewer's left.
+  function setPose(next){
+    var turn = angleGap(POSE[next], POSE[pose]);
+    if (turn >= 135) mirrored = !mirrored;
+    else if (turn > 0) mirrored = false;
+    pose = next;
+    layout();
   }
 
   function needsPermission(){
@@ -395,6 +406,7 @@
   function fallbackToManual(){
     flipBtn.textContent = "Flip";
     manualDown = !manualDown;
+    mirrored = !mirrored;          // the manual flip is a 180 turn too
     layout();
   }
 
