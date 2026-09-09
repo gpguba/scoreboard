@@ -300,12 +300,13 @@
     var b = e.beta  * Math.PI / 180;
     var g = e.gamma * Math.PI / 180;
 
-    // Gravity projected onto the plane of the screen, in device axes.
-    // The x term is positive: measured against a real handset, gamma runs
-    // the opposite way to the naive reading of the spec. It cancels out at
-    // 0 and 180 degrees, which is why portrait was right while the two
-    // landscape poses came out transposed.
-    var gx =  Math.cos(b) * Math.sin(g);
+    // In-plane gravity, in device axes. gamma alone carries the sideways
+    // direction and beta the up/down: multiplying the two together couples
+    // the landscape decision to beta, which goes unstable near the
+    // landscape-vertical position and can jump by 180. Keeping them
+    // separate means turning the handset over in landscape changes only
+    // gamma's sign, so the digits rotate and the colours stay put.
+    var gx =  Math.sin(g);
     var gy = -Math.sin(b);
 
     if (Math.hypot(gx, gy) < 0.3) return;   // lying flat: hold the last pose
