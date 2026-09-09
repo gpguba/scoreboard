@@ -114,15 +114,18 @@
   .cue.up{top:14px}
   .cue.down{bottom:14px}
 
-  /* Its own row beneath the panels, so it can never sit over a digit.
-     Inside the board, so it turns with everything else and stays upright. */
+  /* Floats over the foot of the panels, which keeps the full height of
+     the board for the rectangles. Inside the board, so it turns with
+     everything else and stays upright. */
   #controls{
-    flex:none;
+    position:absolute;
+    left:50%;
+    bottom:6px;
+    transform:translateX(-50%);
     display:flex;
     justify-content:center;
     align-items:center;
     gap:10px;
-    padding-top:6px;
   }
 
   button{
@@ -191,7 +194,7 @@
     .cue{font-size:10px}
     .cue.up{top:6px}
     .cue.down{bottom:6px}
-    #controls{padding-top:3px;gap:6px}
+    #controls{bottom:2px;gap:6px}
     #reset{width:28px;height:28px}
     #reset .glyph{font-size:13px}
     #flip{height:22px;padding:0 9px;font-size:10px;border-radius:11px}
