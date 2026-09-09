@@ -49,19 +49,27 @@
   #board{
     position:absolute;
     display:flex;
-    gap:6px;
+    flex-direction:column;
     transform-origin:0 0;
     transition:transform 260ms cubic-bezier(.4,0,.2,1);
+  }
+
+  #panels{
+    flex:1;
+    min-height:0;
+    min-width:0;
+    display:flex;
+    gap:6px;
   }
 
   /* Turning the handset over 180 degrees leaves the coloured panels on
      exactly the same glass and rotates only the digits. That holds on
      both axes: up/down are a pair, and right/left are a pair. Swapping
      which of right/left carries the reverse mirrors the sideways case. */
-  #board[data-pose="up"],
-  #board[data-pose="right"]{flex-direction:row}
-  #board[data-pose="down"],
-  #board[data-pose="left"] {flex-direction:row-reverse}
+  #board[data-pose="up"]    #panels,
+  #board[data-pose="right"] #panels{flex-direction:row}
+  #board[data-pose="down"]  #panels,
+  #board[data-pose="left"]  #panels{flex-direction:row-reverse}
 
   .panel{
     flex:1;
@@ -106,15 +114,15 @@
   .cue.up{top:14px}
   .cue.down{bottom:14px}
 
-  /* Inside the board, so the controls turn with it and stay upright. */
+  /* Its own row beneath the panels, so it can never sit over a digit.
+     Inside the board, so it turns with everything else and stays upright. */
   #controls{
-    position:absolute;
-    left:50%;
-    bottom:14px;
-    transform:translateX(-50%);
+    flex:none;
     display:flex;
+    justify-content:center;
     align-items:center;
     gap:10px;
+    padding-top:6px;
   }
 
   button{
@@ -169,6 +177,27 @@
   }
   #dbg[hidden]{display:none}
 
+  /* Watch-sized screens. Both dimensions are tested so no phone matches. */
+  @media (max-width: 300px) and (max-height: 300px){
+    #stage{
+      padding:
+        calc(3px + env(safe-area-inset-top))
+        calc(3px + env(safe-area-inset-right))
+        calc(3px + env(safe-area-inset-bottom))
+        calc(3px + env(safe-area-inset-left));
+    }
+    #panels{gap:4px}
+    .panel{border-radius:14px}
+    .cue{font-size:10px}
+    .cue.up{top:6px}
+    .cue.down{bottom:6px}
+    #controls{padding-top:3px;gap:6px}
+    #reset{width:28px;height:28px}
+    #reset .glyph{font-size:13px}
+    #flip{height:22px;padding:0 9px;font-size:10px;border-radius:11px}
+    #dbg{font-size:9px;padding:4px 5px}
+  }
+
   @media (prefers-reduced-motion: reduce){
     .score.bump{animation:none}
     #board,#reset,#reset.holding .prog{transition:none}
@@ -179,6 +208,7 @@
 
 <div id="stage">
   <main id="board" data-pose="up">
+   <div id="panels">
     <section class="panel" data-side="left">
       <span class="cue up">&#9650;</span>
       <span class="score" id="score-left">0</span>
@@ -189,6 +219,7 @@
       <span class="score" id="score-right">0</span>
       <span class="cue down">&#9660;</span>
     </section>
+   </div>
 
     <div id="controls">
       <button id="flip">Auto-flip</button>
@@ -290,6 +321,8 @@
   }
 
   window.addEventListener("resize", layout);
+  if (window.ResizeObserver) new ResizeObserver(layout).observe(stage);
+  setTimeout(layout, 300);
   window.addEventListener("orientationchange", function(){ setTimeout(layout, 120); });
 
   // --- gravity ----------------------------------------------------------
