@@ -54,13 +54,14 @@
     transition:transform 260ms cubic-bezier(.4,0,.2,1);
   }
 
-  /* Blue sits on the viewer's left in every orientation. The one
-     exception is upside down, where the pair swaps so blue holds the
-     same physical edge of the handset. */
+  /* Turning the handset over 180 degrees leaves the coloured panels on
+     exactly the same glass and rotates only the digits. That holds on
+     both axes: up/down are a pair, and right/left are a pair. Swapping
+     which of right/left carries the reverse mirrors the sideways case. */
   #board[data-pose="up"],
-  #board[data-pose="right"],
-  #board[data-pose="left"] {flex-direction:row}
-  #board[data-pose="down"] {flex-direction:row-reverse}
+  #board[data-pose="right"]{flex-direction:row}
+  #board[data-pose="down"],
+  #board[data-pose="left"] {flex-direction:row-reverse}
 
   .panel{
     flex:1;
@@ -303,14 +304,6 @@
     // In-plane gravity, in device axes.
     var gx =  Math.cos(b) * Math.sin(g);
     var gy = -Math.sin(b);
-
-    // Once the handset is clearly sideways, take the direction from gamma
-    // alone. Beta can jump by 180 near the landscape-vertical position,
-    // which inverts the cos(b) factor and leaves gx unchanged when the
-    // phone is turned over — so the pose never switches and the digits
-    // never rotate. Gamma's sign is the reliable signal there. Portrait
-    // keeps the original terms, so its sensitivity is unchanged.
-    if (Math.abs(gx) > Math.abs(gy)) gx = Math.sin(g);
 
     if (Math.hypot(gx, gy) < 0.3) return;   // lying flat: hold the last pose
 
