@@ -120,7 +120,6 @@
     opacity:.22;
     pointer-events:none;
   }
-  .cue.up{top:14px}
   .cue.down{bottom:14px}
 
   /* Floats over the foot of the panels, which keeps the full height of
@@ -212,7 +211,6 @@
     .panel.last{box-shadow:inset 0 0 0 2px rgba(255,255,255,.92)}
     .panel{border-radius:14px}
     .cue{font-size:10px}
-    .cue.up{top:6px}
     .cue.down{bottom:6px}
     #controls{bottom:2px;gap:6px}
     #reset{width:28px;height:28px}
@@ -233,12 +231,10 @@
   <main id="board" data-pose="up" data-mirror="0">
    <div id="panels">
     <section class="panel" data-side="left">
-      <span class="cue up">&#9650;</span>
       <span class="score" id="score-left">0</span>
       <span class="cue down">&#9660;</span>
     </section>
     <section class="panel" data-side="right">
-      <span class="cue up">&#9650;</span>
       <span class="score" id="score-right">0</span>
       <span class="cue down">&#9660;</span>
     </section>
@@ -262,7 +258,7 @@
 (function(){
   "use strict";
 
-  var MAX = 99, MIN = 0, SWIPE = 24, HOLD = 700;
+  var MAX = 99, MIN = 0, SWIPE = 24, SIDEWAYS = 14, HOLD = 700;
 
   // Older iOS predates the display-mode media query.
   if (window.navigator.standalone === true){
@@ -460,6 +456,7 @@
     var side = panel.dataset.side;
 
     panel.addEventListener("pointerdown", function(e){
+      e.preventDefault();            // no double-tap zoom while scoring fast
       origin = { x: e.clientX, y: e.clientY, id: e.pointerId };
       panel.setPointerCapture(e.pointerId);
       keepAwake();
@@ -477,9 +474,13 @@
       var lx = dx * Math.cos(rad) - dy * Math.sin(rad);
       var ly = dx * Math.sin(rad) + dy * Math.cos(rad);
 
-      if (Math.abs(ly) < SWIPE || Math.abs(ly) <= Math.abs(lx)) return;
+      // Sideways drags are ignored: edge swipes are navigation, and they
+      // shouldn't put a point on the board.
+      if (Math.abs(lx) > Math.abs(ly) && Math.abs(lx) > SIDEWAYS) return;
 
-      var up = ly < 0;
+      // A clear downward swipe subtracts. Everything else — a tap, or a
+      // few pixels of drift under the thumb — adds one.
+      var up = !(ly > SWIPE);
       if (change(side, up ? 1 : -1)) markLast(up ? side : null);
     });
 
